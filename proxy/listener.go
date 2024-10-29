@@ -22,6 +22,7 @@ func (l SOCKS5ProxyListener) Launch() (err error) {
 		LOG.Errorln(err)
 		return err
 	}
+	LOG.Infoln("Listener work on ", listener.Addr().String())
 	defer func(listener *net.TCPListener) { _ = listener.Close() }(listener)
 	for {
 		conn, err := listener.AcceptTCP()
@@ -29,5 +30,7 @@ func (l SOCKS5ProxyListener) Launch() (err error) {
 			LOG.Errorln(err)
 			continue
 		}
+		LOG.Debugf("Accepted new connection from %s", conn.RemoteAddr())
+		go func() { _ = NewConnectionHandler(conn).launch() }()
 	}
 }

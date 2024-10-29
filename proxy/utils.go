@@ -62,7 +62,7 @@ func (f *CustomTextFormatter) Format(entry *logrus.Entry) ([]byte, error) {
 
 func init() {
 	file, err := os.OpenFile(
-		"server.log", os.O_CREATE|os.O_WRONLY|os.O_APPEND,
+		"proxy.log", os.O_CREATE|os.O_WRONLY|os.O_APPEND,
 		0666,
 	)
 	if err != nil {
