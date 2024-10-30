@@ -7,7 +7,7 @@ import (
 )
 
 func ParseCLI() (port int) {
-	flag.IntVar(&port, "port", 0, "Multicast group port")
+	flag.IntVar(&port, "port", 0, "proxy port")
 	flag.Parse()
 
 	seen := make(map[string]bool)

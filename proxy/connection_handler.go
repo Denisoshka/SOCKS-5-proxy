@@ -35,12 +35,6 @@ func (ch *ConnectionHandler) launch() error {
 	}(conn)
 	method, err := ch.handleHandshake()
 	if err != nil {
-		/*if errors.Is(err, ErrNoAcceptableMethodsErr) {
-			_, err := conn.Write(
-				[]byte{RequiredSocksVersion, AuthNoAcceptableMethods},
-			)
-			LOG.Errorln(conn.RemoteAddr(), err)
-		}*/
 		LOG.Errorln(conn.RemoteAddr(), "error occurred during handshake", err)
 		return err
 	}
@@ -50,7 +44,7 @@ func (ch *ConnectionHandler) launch() error {
 		LOG.Errorln(
 			conn.RemoteAddr(), "error occurred during handle initial request", err,
 		)
-		ch.ReplyOnErrHandleRequest(err, atyp)
+		_ = ch.ReplyOnErrHandleRequest(err, atyp)
 		return err
 	}
 
@@ -59,7 +53,7 @@ func (ch *ConnectionHandler) launch() error {
 	//defer func(remoteAddr *net.Conn) { _ = remoteAddr.Close() }(remoteAddr)
 	if err != nil {
 		LOG.Errorln(addr.String(), "error occurred during dial", err)
-		ch.ReplyOnErrHandleRequest(err, atyp)
+		_ = ch.ReplyOnErrHandleRequest(err, atyp)
 		return err
 	}
 
@@ -186,21 +180,23 @@ func (ch *ConnectionHandler) handleRequest() (
 	return remoteAddr, atyp, nil
 }
 
-func (ch *ConnectionHandler) ReplyOnErrHandleRequest(err error, adrType byte) {
+func (ch *ConnectionHandler) ReplyOnErrHandleRequest(suppliedError error,
+	adrType byte) (err error) {
 	conn := ch.conn
 	reply := []byte{RequiredSocksVersion, 0, 0x00, adrType, 0, 0, 0, 0, 0, 0}
-	if errors.Is(err, ErrNetworkUnreachable) {
+	if errors.Is(suppliedError, ErrNetworkUnreachable) {
 		reply[1] = REPLYNetworkUnreachable
-	} else if errors.Is(err, ErrATYPIncorrect) {
+	} else if errors.Is(suppliedError, ErrATYPIncorrect) {
 		reply[1] = REPLYAddressTypeNotSupported
-	} else if errors.Is(err, ErrCMDIncorrect) {
+	} else if errors.Is(suppliedError, ErrCMDIncorrect) {
 		reply[1] = REPLYCommandNotSupported
-	} else if errors.Is(err, ErrHostUnreachable) {
+	} else if errors.Is(suppliedError, ErrHostUnreachable) {
 		reply[1] = REPLYHostUnreachable
 	} else {
 		reply[1] = REPLYConnectionRefused
 	}
-	_, _ = conn.Write(reply)
+	_, suppliedError = conn.Write(reply)
+	return err
 }
 
 func (ch *ConnectionHandler) ReplySuccessOnHandleRequest(
