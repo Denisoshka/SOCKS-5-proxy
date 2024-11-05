@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io"
 	"net"
+	"sync"
 )
 
 var (
@@ -50,7 +51,7 @@ func (ch *ConnectionHandler) launch() error {
 
 	LOG.Debugln(addr.String(), "atyp", atyp, "method", method)
 	remoteAddr, err := net.DialTCP("tcp", nil, addr)
-	//defer func(remoteAddr *net.Conn) { _ = remoteAddr.Close() }(remoteAddr)
+	defer func(remoteAddr *net.TCPConn) { _ = remoteAddr.Close() }(remoteAddr)
 	if err != nil {
 		LOG.Errorln(addr.String(), "error occurred during dial", err)
 		_ = ch.ReplyOnErrHandleRequest(err, atyp)
@@ -68,8 +69,11 @@ func (ch *ConnectionHandler) launch() error {
 		"local.remote:", ch.conn.RemoteAddr(),
 		"local.local:", ch.conn.LocalAddr(),
 	)
-	go func() { _ = copyData(conn, remoteAddr) }()
-	_ = copyData(remoteAddr, conn)
+	var wg sync.WaitGroup
+	wg.Add(2)
+	go func() { _ = copyData(conn, remoteAddr, &wg) }()
+	_ = copyData(remoteAddr, conn, &wg)
+	wg.Wait()
 	LOG.Traceln("finish launch", err)
 	return err
 }
@@ -183,7 +187,7 @@ func (ch *ConnectionHandler) handleRequest() (
 func (ch *ConnectionHandler) ReplyOnErrHandleRequest(suppliedError error,
 	adrType byte) (err error) {
 	conn := ch.conn
-	reply := []byte{RequiredSocksVersion, 0, 0x00, adrType, 0, 0, 0, 0, 0, 0}
+	reply := []byte{RequiredSocksVersion, 0, 0x00, ATYPIPV4Address, 0, 0, 0, 0, 0, 0}
 	if errors.Is(suppliedError, ErrNetworkUnreachable) {
 		reply[1] = REPLYNetworkUnreachable
 	} else if errors.Is(suppliedError, ErrATYPIncorrect) {
@@ -212,8 +216,10 @@ func (ch *ConnectionHandler) ReplySuccessOnHandleRequest(
 	return err
 }
 
-func copyData(dest net.Conn, src net.Conn) (err error) {
-	_, err = io.Copy(dest, src)
+func copyData(src *net.TCPConn, dest *net.TCPConn, wg *sync.WaitGroup) (err error) {
+	defer wg.Done()
+	defer func(dest *net.TCPConn) { _ = dest.CloseWrite() }(dest)
+	_, err = io.Copy(src, dest)
 	if err != nil {
 		LOG.Errorln(": Reading error: ", err)
 	}
